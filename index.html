@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>ClaimGram | Professional</title>
+    <style>
+        :root { --bg: #0e1621; --side: #17212b; --accent: #5288c1; --text: #f5f5f5; --msg-own: #2b5278; --msg-other: #182533; --green: #4caf50; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+        
+        /* Экран входа */
+        #auth-screen { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+        .auth-card { background: var(--side); padding: 30px; border-radius: 15px; width: 350px; text-align: center; border: 1px solid var(--accent); }
+        input { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: none; background: #242f3d; color: white; outline: none; }
+        
+        .btn-row { display: flex; gap: 10px; }
+        .login-btn { flex: 1; background: var(--accent); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .reg-btn { flex: 1; background: var(--green); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        
+        #app { display: none; height: 100vh; flex-direction: column; }
+        .container { display: flex; flex: 1; overflow: hidden; }
+        .sidebar { width: 260px; background: var(--side); border-right: 1px solid #000; padding: 15px; }
+        .chat-area { flex: 1; display: flex; flex-direction: column; }
+        #msg-flow { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .msg { max-width: 75%; padding: 10px; border-radius: 12px; background: var(--msg-other); font-size: 14px; }
+        .msg.own { align-self: flex-end; background: var(--msg-own); }
+        .contact-item { padding: 10px; background: #242f3d; margin-bottom: 5px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+<div id="auth-screen">
+    <div class="auth-card">
+        <h2 style="margin-bottom:20px">ClaimGram</h2>
+        <input type="text" id="user" placeholder="Логин">
+        <input type="password" id="pass" placeholder="Пароль">
+        <div class="btn-row">
+            <button class="login-btn" onclick="auth('login')">ВОЙТИ</button>
+            <button class="reg-btn" onclick="auth('register')">РЕГИСТРАЦИЯ</button>
+        </div>
+    </div>
+</div>
+
+<div id="app">
+    <div class="container">
+        <aside class="sidebar">
+            <div style="display:flex; justify-content:space-between; margin-bottom:15px">
+                <b>КОНТАКТЫ</b>
+                <button onclick="addFriend()" style="color:var(--accent); background:none; border:none; cursor:pointer; font-size:20px">+</button>
+            </div>
+            <div id="cont-list"></div>
+        </aside>
+        <main class="chat-area">
+            <div id="msg-flow"></div>
+            <div style="padding:15px; background:var(--side); display:flex; gap:10px">
+                <input type="text" id="m-input" placeholder="Сообщение...">
+                <button onclick="sendMsg()" style="padding:10px 20px; background:var(--accent); border:none; color:white; border-radius:8px; cursor:pointer">➤</button>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+    // ТВОЯ ТЕКУЩАЯ ССЫЛКА
+    const SERVER_URL = "https://6991a94c25316a.lhr.life"; 
+    let currentUser = "";
+
+    async function auth(type) {
+        const u = document.getElementById('user').value;
+        const p = document.getElementById('pass').value;
+        if(!u || !p) return alert("Заполни поля!");
+
+        const path = type === 'login' ? '/api/login' : '/api/register';
+        try {
+            const res = await fetch(SERVER_URL + path, {
+                method: 'POST',
+                body: JSON.stringify({username: u, password: p})
+            });
+
+            if(res.ok) {
+                currentUser = u;
+                document.getElementById('auth-screen').style.display = 'none';
+                document.getElementById('app').style.display = 'flex';
+                update(); setInterval(update, 2000);
+            } else {
+                alert(type === 'login' ? "Ошибка входа!" : "Этот ник занят!");
+            }
+        } catch(e) { alert("Сервер спит!"); }
+    }
+
+    async function addFriend() {
+        const name = prompt("Ник друга:");
+        if(name) {
+            await fetch(SERVER_URL + "/api/add_contact", {
+                method: 'POST',
+                body: JSON.stringify({me: currentUser, friend: name})
+            });
+            update();
+        }
+    }
+
+    async function sendMsg() {
+        const inp = document.getElementById('m-input');
+        await fetch(SERVER_URL + "/api/send", {
+            method: 'POST',
+            body: JSON.stringify({author: currentUser, text: inp.value})
+        });
+        inp.value = ""; update();
+    }
+
+    async function update() {
+        try {
+            const res = await fetch(SERVER_URL);
+            const data = await res.json();
+            
+            // Список контактов именно для ТЕБЯ
+            document.getElementById('cont-list').innerHTML = (data.contacts[currentUser] || []).map(c => `
+                <div class="contact-item">👤 ${c}</div>
+            `).join('');
+
+            document.getElementById('msg-flow').innerHTML = data.messages.map(m => `
+                <div class="msg ${m.author === currentUser ? 'own' : ''}">
+                    <b style="color:var(--accent); font-size:11px">${m.author}</b><br>${m.text}
+                </div>
+            `).join('');
+        } catch(e) {}
+    }
+</script>
+</body>
+</html>
